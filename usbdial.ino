@@ -2,9 +2,9 @@
 //https://github.com/happythingsmaker/PremiereProDialDIY/blob/master/PremiereProDialDIY_LEFT_RIGHT_SPACE/PremiereProDialDIY_LEFT_RIGHT_SPACE.ino
 
 // [ Introduction ]
-//Youtube https://youtu.be/xxxxxx
-//Source Code 
-//3D Printing File 
+//Youtube https://www.youtube.com/watch?v=-YmWcLdHauM
+//Source Code https://github.com/paperadio/USB-Volume-Dial
+//3D Printing File https://www.thingiverse.com/thing:5371158
 
 // Resolution : some encoder is too sensitive. this reduces sensitivity.
 #define RESOLUTION 2
