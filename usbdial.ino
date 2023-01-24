@@ -12,6 +12,8 @@
 // include a HID library
 #include "HID-Project.h"
 
+#include <TimerOne.h>
+
 // From here, text "OUTPUT_B" is going to be replaced with "15".
 #define  OUTPUT_B A1
 
@@ -35,13 +37,17 @@ bool lastButtonState = 0;
 
 // mode selection
 #define VOLUME_MODE 0
-#define PREMIERE_MODE 1
 #define LIGHTROOM_MODE 2
 int mode = VOLUME_MODE;
 
+volatile bool is_rotating = false;  //是否正在旋转中
+bool curr_rotation_dir = false;  //false:left, true:right
+unsigned long last_rotate_time;  //最后一次旋转动作时间, ms
+#define ROTATE_PERIOD_WINDOW 20  //ms
+
+
 // void setup(){} function is for one time setting
 void setup() {
-
   // Sends a clean report to the host. This is important on any Arduino type.
   Consumer.begin();
 
@@ -53,7 +59,6 @@ void setup() {
 // in order to prevent chattering, we need to check the moment when was the last click moment
 // for 1000ms, we will ignore all signals
 long lastClickTime = 0;
-long tempCount = 0;
 
 // this loop() function repeats its code eternally
 void loop() {
@@ -62,19 +67,21 @@ void loop() {
 
   // if aLastState is not currentState, it meant there's something changed.
   if (aState != aLastState) {
-
     // read another pin's state.
     // if you want to know about the theory, watch this video
     // https://www.youtube.com/watch?v=v4BbSzJ-hz4
-    if (digitalRead(OUTPUT_B) != aState) {
-      //Serial.println(F("rotateLeft"));
-      rotateLeft();
-      delay(8);
-    } else {
-      //Serial.println(F("rotateRight"));
-      rotateRight();
-      delay(8);
-    }
+    
+    //Check the value of OUTPUT_B
+    bool tmp_readout = (digitalRead(OUTPUT_B) == aState);
+
+    // Rotate left if OUTPUT_B changed, otherwise rotate right
+    rotate(tmp_readout);
+
+    // Delay for 10 milliseconds
+    delay(10);
+
+    //Serial.println(tmp_readout);
+
     // save current State as last State
     aLastState = aState;
   }
@@ -102,9 +109,16 @@ void loop() {
         pressButton();
       }
     }
-    else {                          // HIGH -> HIGH : noting to do
+    else {  // HIGH -> HIGH : noting to do
     }
     lastButtonState = HIGH;
+  }
+
+  if (is_rotating) {
+    if ((millis() - last_rotate_time)>ROTATE_PERIOD_WINDOW) {
+      is_rotating = false;
+      //Serial.println(F("一次旋转动作结束"));
+    }
   }
 }
 
@@ -113,25 +127,47 @@ void changeMode() {
   int a = 0;
 }
 
-void rotateLeft() {
-  if (tempCount++ % RESOLUTION == 0) {
-    if (mode == VOLUME_MODE) {
-      Consumer.write(MEDIA_VOLUME_DOWN);
-    } else if (mode == LIGHTROOM_MODE) {
-      Serial.println(F("pressButton"));
-    }
+/**
+ * rotate - Rotate function that handles volume control
+ *
+ * @direction: false for rotate left, true for rotate right
+ * 滤波方法:以一个timer作为判断是否为一次连续旋转动作的依据，并以本次动作第一个数据
+ * 作为动作方向，在整个动作过程中保持该方向不变。经实际测试，当ROTATE_PERIOD_WINDOW
+ * 为20ms时，对旋转方向的判断灵敏且准确，可以消除快速旋转时产生的信号噪音。可以满足
+ * 游戏或打碟等高速来回旋转的使用场景。
+ */
+void rotate(bool direction) {
+  // Set the current rotation direction to the first value received
+  if (!is_rotating) {
+    curr_rotation_dir = direction;
+    //Serial.println(F("一次旋转动作开始"));
+  }
+
+  // Always use the first value received as direction
+  direction = curr_rotation_dir;
+
+  // Record the time of the last rotation action
+  last_rotate_time = millis();
+
+  // Set is_rotating to true to indicate that a rotation action is in progress
+  is_rotating = true;
+
+  //Serial.println(direction);
+
+  /* 
+  Based on the current mode, either control the media volume or send a command to press a button in Lightroom.
+  If mode is VOLUME_MODE, control the media volume by sending a command to increase or decrease it.
+  If mode is LIGHTROOM_MODE, send a command to press a button in Lightroom.
+  */
+  if (mode == VOLUME_MODE) {
+      // Control the media volume
+      Consumer.write(direction?MEDIA_VOLUME_UP:MEDIA_VOLUME_DOWN);
+  } else if (mode == LIGHTROOM_MODE) {
+    // Send command to press button in Lightroom
+    Serial.println(F("pressButton"));
   }
 }
 
-void rotateRight() {
-  if (tempCount++ % RESOLUTION == 0) {
-    if (mode == VOLUME_MODE) {
-      Consumer.write(MEDIA_VOLUME_UP);
-    } else if (mode == LIGHTROOM_MODE) {
-      Serial.println(F("pressButton"));
-    }
-  }
-}
 
 void pressButton() {
   Serial.println(F("MEDIA_VOLUME_MUTE"));
